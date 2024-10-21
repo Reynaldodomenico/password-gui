@@ -20,7 +20,7 @@ def load_or_create_key():
 def load_or_create_master_password():
     """ Load or create the master password. """
     if not os.path.exists("master_password.txt"):
-        return None  # No master password set
+        return None
     else:
         with open("master_password.txt", "rb") as master_file:
             encrypted_password = master_file.read()
@@ -32,7 +32,6 @@ def save_master_password(master_password):
     with open("master_password.txt", "wb") as master_file:
         master_file.write(encrypted_password)
 
-# Load or create the encryption key and set up Fernet
 key = load_or_create_key()
 fer = Fernet(key)
 master_password = load_or_create_master_password()
@@ -80,7 +79,24 @@ def copy_password_to_clipboard(password):
     pyperclip.copy(password)
     messagebox.showinfo(title="Copied", message="Password copied to clipboard.")
 
-# ---------------------------- VIEW PASSWORDS ------------------------------- #
+def delete_password(website, email, encrypted_password):
+    """ Delete a password entry based on the website, email, and encrypted password. """
+    try:
+        with open("data.txt", "r") as data_file:
+            lines = data_file.readlines()
+    except FileNotFoundError:
+        messagebox.showinfo(title="Error", message="No data file found.")
+        return
+
+    with open("data.txt", "w") as data_file:
+        for line in lines:
+            if line.strip() != f"{website} | {email} | {encrypted_password}":
+                data_file.write(line)
+
+    messagebox.showinfo(title="Deleted", message=f"Password for {website} has been deleted.")
+    view_passwords() 
+
+# ---------------------------- VIEW PASSWORDS GUI ------------------------------- #
 def view_passwords():
     """ View all saved passwords. """
     try:
@@ -92,22 +108,21 @@ def view_passwords():
 
     view_window = Toplevel()
     view_window.title("Stored Passwords")
-    view_window.geometry("500x400")
+    view_window.geometry("600x400")
 
     row = 0
     for line in data:
         website, email, encrypted_password = line.strip().split(" | ")
         decrypted_password = fer.decrypt(encrypted_password.encode()).decode()
 
-        # Display website and email (left-aligned)
         Label(view_window, text=f"Website: {website} | Email: {email}", anchor="w").grid(row=row, column=0, padx=10, pady=5, sticky="w")
-
-        # Display decrypted password (left-aligned)
         Label(view_window, text=f"Password: {decrypted_password}", anchor="w").grid(row=row, column=1, padx=10, pady=5, sticky="w")
 
-        # Add a "Copy" button to copy the password to clipboard
         copy_button = Button(view_window, text="Copy", command=lambda pwd=decrypted_password: copy_password_to_clipboard(pwd))
         copy_button.grid(row=row, column=2, padx=10, pady=5)
+
+        delete_button = Button(view_window, text="Delete", command=lambda w=website, e=email, ep=encrypted_password: delete_password(w, e, ep))
+        delete_button.grid(row=row, column=3, padx=10, pady=5)
 
         row += 1
 
@@ -117,54 +132,60 @@ def reset():
     confirm = messagebox.askyesno(title="Reset Confirmation", message="Are you sure you want to reset?\nThis will delete all saved passwords and reset the master password.")
     if confirm:
         if os.path.exists("data.txt"):
-            os.remove("data.txt")  # Delete the passwords file
+            os.remove("data.txt")
         if os.path.exists("master_password.txt"):
-            os.remove("master_password.txt")  # Delete the master password file
+            os.remove("master_password.txt") 
         if os.path.exists("key.key"):
-            os.remove("key.key")  # Delete the encryption key
+            os.remove("key.key") 
         messagebox.showinfo(title="Reset", message="All passwords and the master password have been deleted.")
-        window.destroy()  # Close the window to restart the process
+        window.destroy()
 
 # ---------------------------- MAIN PASSWORD MANAGER GUI ------------------------------- #
 def open_password_manager():
     """ Open the main password manager window. """
     global website_entry, password_entry, email_entry
 
-    # Clear the current window (remove all widgets)
     for widget in window.winfo_children():
         widget.destroy()
 
-    window.title("Password Manager")
-    window.config(padx=50, pady=50)
+    window.title("ShieldPass - Password Manager")
+    window.config(padx=20, pady=20)
+    canvas = Canvas(window, height=400, width=400)
 
-    canvas = Canvas(window, height=200, width=200)
-    logo_img = PhotoImage(file="logo.png")
-    canvas.create_image(100, 100, image=logo_img)
+    try:
+        logo_img = PhotoImage(file="SHIELDPASS_LOGO.png")
+        canvas.create_image(200, 200, image=logo_img)
+        canvas.image = logo_img  
+    except TclError as e:
+        print(f"Error loading image: {e}")
     canvas.grid(row=0, column=1)
 
-    # Labels
     website_label = Label(window, text="Website:")
-    website_label.grid(row=1, column=0)
+    website_label.grid(row=1, column=0, sticky="w", padx=5, pady=5)
+    
     email_label = Label(window, text="Email/Username:")
-    email_label.grid(row=2, column=0)
+    email_label.grid(row=2, column=0, sticky="w", padx=5, pady=5)
+    
     password_label = Label(window, text="Password:")
-    password_label.grid(row=3, column=0)
+    password_label.grid(row=3, column=0, sticky="w", padx=5, pady=5)
 
-    # Entries
     website_entry = Entry(window, width=35)
     website_entry.grid(row=1, column=1, columnspan=2)
     website_entry.focus()
+    
     email_entry = Entry(window, width=35)
     email_entry.grid(row=2, column=1, columnspan=2)
     email_entry.insert(0, "user@example.com")
-    password_entry = Entry(window, width=21)
-    password_entry.grid(row=3, column=1)
+    
+    password_entry = Entry(window, width=35)
+    password_entry.grid(row=3, column=1, columnspan=2, padx=(0, 10)) 
 
-    # Buttons
     generate_password_button = Button(window, text="Generate Password", command=generate_password)
-    generate_password_button.grid(row=3, column=2)
+    generate_password_button.grid(row=3, column=2, padx=(0, 10))
+    
     add_button = Button(window, text="Add", width=36, command=save)
     add_button.grid(row=4, column=1, columnspan=2)
+    
     view_button = Button(window, text="View Passwords", width=36, command=view_passwords)
     view_button.grid(row=6, column=1, columnspan=2)
 
@@ -191,7 +212,7 @@ def check_master_password():
 
 # ---------------------------- UI SETUP FOR MASTER PASSWORD ------------------------------- #
 window = Tk()
-window.title("Master Password Check")
+window.title("ShieldPass - Master Password")
 window.config(padx=50, pady=50)
 
 master_password_label = Label(window, text="Enter Master Password:" if master_password else "Set a Master Password:")
@@ -204,7 +225,6 @@ master_password_entry.focus()
 submit_button = Button(window, text="Submit", command=check_master_password)
 submit_button.grid(row=1, column=1)
 
-# Reset button for when the master password is forgotten
 reset_button = Button(window, text="Forgot Master Password (Reset)", command=reset)
 reset_button.grid(row=2, column=1)
 
